@@ -15,9 +15,10 @@ interface CashierManagerProps {
     isOpen: boolean;
     onClose: () => void;
     onStatusChange: () => void;
+    onCloseSuccess: (dados: any) => void;
 }
 
-export default function CashierManager({ isOpen, onClose, onStatusChange }: CashierManagerProps) {
+export default function CashierManager({ isOpen, onClose, onStatusChange, onCloseSuccess }: CashierManagerProps) {
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<CashierData | null>(null);
 
@@ -59,11 +60,17 @@ export default function CashierManager({ isOpen, onClose, onStatusChange }: Cash
 
         setLoading(true);
         try {
-            await api.post("/cashier/close", { final_balance: parseFloat(closingBalance) || 0 });
+            // Pegamos a resposta completa da API agora
+            const response = await api.post("/cashier/close", { final_balance: parseFloat(closingBalance) || 0 });
+
             toast.success("Caixa fechado com sucesso!");
             await fetchStatus();
             onStatusChange();
-            onClose();
+
+            // Passa os dados do cupom para a tela pai
+            onCloseSuccess(response.data);
+
+            onClose(); // Fecha o modal do gerenciador
         } catch (err: any) {
             toast.error("Erro ao fechar caixa");
         } finally {

@@ -17,7 +17,9 @@ import CashierManager from "@/components/CashierManager";
 import CheckoutModal from "@/components/CheckoutModal";
 import QuantityModal from "@/components/QuantityModal";
 import ChangeTerminalModal from "@/components/ChangeTerminalModal";
-import useScanDetection from "@/hooks/useScanDetection"; // <--- 1. Importe aqui
+import useScanDetection from "@/hooks/useScanDetection";
+import CupomModal from "@/components/CupomModal";
+import FechamentoModal from "@/components/FechamentoModal";
 import { toast } from "sonner";
 
 // Interfaces
@@ -52,10 +54,13 @@ export default function PDV() {
   const [isCashierModalOpen, setCashierModalOpen] = useState(false);
   const [isTerminalModalOpen, setTerminalModalOpen] = useState(false);
   const [selectedProductForQty, setSelectedProductForQty] = useState<Product | null>(null);
-
+  const [lastSaleData, setLastSaleData] = useState<any>(null);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [dadosFechamento, setDadosFechamento] = useState<any>(null);
   // ESTADOS DE CONTROLE
   const [isCashierOpen, setIsCashierOpen] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
+
 
   useEffect(() => {
     setTerminalName(Cookies.get("terminal_id") || "Indefinido");
@@ -130,7 +135,12 @@ export default function PDV() {
         })),
       };
 
-      await api.post("/sales/", payload);
+      const response = await api.post("/sales/", payload);
+
+      const dadosCupom = response.data;
+
+      setLastSaleData(dadosCupom);
+      setShowReceiptModal(true);
 
       setShowCheckout(false);
       setCart([]);
@@ -211,6 +221,7 @@ export default function PDV() {
         isOpen={isCashierModalOpen}
         onClose={() => setCashierModalOpen(false)}
         onStatusChange={checkStatus}
+        onCloseSuccess={(dados) => setDadosFechamento(dados)}
       />
 
       <CheckoutModal
@@ -220,6 +231,18 @@ export default function PDV() {
         total={total}
         cart={cart}
         loading={loading}
+      />
+
+      <CupomModal
+        isOpen={showReceiptModal}
+        onClose={() => setShowReceiptModal(false)}
+        dados={lastSaleData}
+      />
+
+      <FechamentoModal
+        isOpen={!!dadosFechamento}
+        dados={dadosFechamento}
+        onClose={() => setDadosFechamento(null)}
       />
 
       <ChangeTerminalModal

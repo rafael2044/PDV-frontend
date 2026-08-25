@@ -8,7 +8,7 @@ import {
   Loader2, Wallet, UserCog,
   History, Monitor, LockKeyhole,
   Receipt, Database, ScanBarcode,
-  LayoutGrid
+  LayoutGrid, FileText, Settings
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -20,6 +20,7 @@ import ChangeTerminalModal from "@/components/ChangeTerminalModal";
 import useScanDetection from "@/hooks/useScanDetection";
 import CupomModal from "@/components/CupomModal";
 import FechamentoModal from "@/components/FechamentoModal";
+import NFCeToggle from "@/components/NFCeToggle";
 import { toast } from "sonner";
 
 // Interfaces
@@ -145,12 +146,65 @@ export default function PDV() {
       setShowCheckout(false);
       setCart([]);
       fetchProducts();
-      toast.success(`Venda finalizada com sucesso! Pagamento: ${paymentMethod.toUpperCase()}`);
+      
+      // Toast baseado no status da NFC-e
+      if (dadosCupom.nfce_status === 'autorizada') {
+        toast.success(`Venda finalizada! NFC-e autorizada.`);
+      } else if (dadosCupom.nfce_status === 'rejeitada') {
+        toast.warning(`Venda finalizada, mas NFC-e foi rejeitada. Use "Reenviar NFC-e" para tentar novamente.`);
+      } else if (dadosCupom.nfce_status === 'pendente') {
+        toast.info(`Venda finalizada! NFC-e pendente de processamento.`);
+      } else {
+        toast.success(`Venda finalizada com sucesso! Pagamento: ${paymentMethod.toUpperCase()}`);
+      }
 
     } catch (error: any) {
       toast.error(error.response?.data?.detail || "Erro ao realizar venda");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleReimprimirNFCE = async (saleId: number) => {
+    try {
+      const { data } = await api.get(`/sales/${saleId}/nfce/danfe`);
+      if (data.success && data.html) {
+        // Abrir em nova janela para impressão
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(data.html);
+          printWindow.document.close();
+          printWindow.focus();
+          setTimeout(() => {
+            printWindow.print();
+          }, 500);
+        }
+        toast.success("DANFE gerado com sucesso!");
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || "Erro ao gerar DANFE");
+    }
+  };
+
+  const handleReprocessarNFCE = async (saleId: number) => {
+    try {
+      toast.info("Reenviando NFC-e para a SEFAZ...");
+      const { data } = await api.post(`/sales/${saleId}/nfce/reprocessar`);
+      
+      if (data.success) {
+        toast.success("NFC-e autorizada com sucesso!");
+        // Atualizar dados do cupom
+        setLastSaleData((prev: any) => ({
+          ...prev,
+          nfce_status: 'autorizada',
+          nfce_chave: data.chave,
+          nfce_protocolo: data.protocolo
+        }));
+      } else {
+        toast.error(data.message || "NFC-e rejeitada novamente");
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || "Erro ao reprocessar NFC-e");
     }
   };
 
@@ -237,6 +291,8 @@ export default function PDV() {
         isOpen={showReceiptModal}
         onClose={() => setShowReceiptModal(false)}
         dados={lastSaleData}
+        onReimprimirNFCE={handleReimprimirNFCE}
+        onReprocessarNFCE={handleReprocessarNFCE}
       />
 
       <FechamentoModal
@@ -341,6 +397,18 @@ export default function PDV() {
                       <Database size={18} /> Backup
                     </Link>
                   )}
+                  
+                  {/* Apenas Admin vê Configurações */}
+                  {role === 'admin' && (
+                    <Link href="/settings" className="shrink-0 bg-orange-600 text-white border border-orange-700 px-4 py-2.5 rounded-lg hover:bg-orange-700 flex items-center gap-2 transition-colors font-medium text-sm shadow-sm">
+                      <Settings size={18} /> Configurações
+                    </Link>
+                  )}
+                  
+                  {/* Toggle NFC-e */}
+                  <div className="shrink-0">
+                    <NFCeToggle />
+                  </div>
                 </>
               )}
             </div>

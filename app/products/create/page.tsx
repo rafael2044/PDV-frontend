@@ -2,13 +2,14 @@
 import { useState } from "react";
 import api from "@/services/api";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Package, Scale } from "lucide-react";
+import { ArrowLeft, Save, Package, Scale, FileText } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
 export default function CreateProduct() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
+    const [showFiscal, setShowFiscal] = useState(false);
 
     const [formData, setFormData] = useState({
         name: "",
@@ -19,6 +20,13 @@ export default function CreateProduct() {
         stock_quantity: "1",
         min_stock: "1",
         is_weighted: false,
+        // Campos Fiscais NFC-e
+        ncm: "",
+        cest: "",
+        cfop: "5102",
+        unidade_medida: "UN",
+        origem: "0",
+        csosn_icms: "102",
     });
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -54,11 +62,16 @@ export default function CreateProduct() {
                 cost_price: parseFloat(formData.cost_price),
                 stock_quantity: parseFloat(formData.stock_quantity) || 1,
                 min_stock: parseFloat(formData.min_stock) || 1,
-                // Enviar null se barcode/category estiverem vazios
                 barcode: formData.barcode || null,
                 category: formData.category || null,
-                is_weighted: formData.is_weighted // <--- ENVIANDO AO BACKEND
-
+                is_weighted: formData.is_weighted,
+                // Campos Fiscais - enviar null se vazio
+                ncm: formData.ncm || null,
+                cest: formData.cest || null,
+                cfop: formData.cfop || "5102",
+                unidade_medida: formData.unidade_medida || "UN",
+                origem: formData.origem || "0",
+                csosn_icms: formData.csosn_icms || "102",
             };
 
             await api.post("/products/", payload);
@@ -73,6 +86,12 @@ export default function CreateProduct() {
                 stock_quantity: "",
                 min_stock: "5",
                 is_weighted: false,
+                ncm: "",
+                cest: "",
+                cfop: "5102",
+                unidade_medida: "UN",
+                origem: "0",
+                csosn_icms: "102",
             });
 
         } catch (error: any) {
@@ -246,6 +265,141 @@ export default function CreateProduct() {
                                 Deve ser maior que 1 unidade.
                             </p>
                         </div>
+                    </div>
+
+                    {/* Seção Fiscais NFC-e */}
+                    <div className="mt-6">
+                        <button
+                            type="button"
+                            onClick={() => setShowFiscal(!showFiscal)}
+                            className="flex items-center gap-2 text-sm font-semibold text-orange-700 bg-orange-50 px-4 py-2 rounded-lg border border-orange-200 hover:bg-orange-100 transition-colors w-full"
+                        >
+                            <FileText size={18} />
+                            Dados Fiscais (NFC-e)
+                            <span className="ml-auto text-xs text-orange-500">
+                                {showFiscal ? '▲ Ocultar' : '▼ Expandir'}
+                            </span>
+                        </button>
+
+                        {showFiscal && (
+                            <div className="mt-4 p-4 bg-orange-50 rounded-lg border border-orange-200 space-y-4">
+                                <p className="text-xs text-orange-600 mb-3">
+                                    Estes campos são utilizados para a emissão de Nota Fiscal de Consumidor Eletrônica (NFC-e).
+                                    Se não informados, serão utilizados valores padrão.
+                                </p>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {/* NCM */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">NCM</label>
+                                        <input
+                                            type="text"
+                                            name="ncm"
+                                            maxLength={8}
+                                            className="w-full p-2 border border-gray-300 rounded focus:ring-orange-500 focus:border-orange-500"
+                                            placeholder="Ex: 22021000"
+                                            value={formData.ncm}
+                                            onChange={handleChange}
+                                        />
+                                        <p className="text-[10px] text-gray-500 mt-1">Nomenclatura Comum do Mercosul (8 dígitos)</p>
+                                    </div>
+
+                                    {/* CEST */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">CEST</label>
+                                        <input
+                                            type="text"
+                                            name="cest"
+                                            maxLength={7}
+                                            className="w-full p-2 border border-gray-300 rounded focus:ring-orange-500 focus:border-orange-500"
+                                            placeholder="Ex: 0301100"
+                                            value={formData.cest}
+                                            onChange={handleChange}
+                                        />
+                                        <p className="text-[10px] text-gray-500 mt-1">Código Especificador da Substituição Tributária</p>
+                                    </div>
+
+                                    {/* CFOP */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">CFOP</label>
+                                        <select
+                                            name="cfop"
+                                            className="w-full p-2 border border-gray-300 rounded focus:ring-orange-500 focus:border-orange-500"
+                                            value={formData.cfop}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="5102">5102 - Venda dentro do estado</option>
+                                            <option value="6102">6102 - Venda interestadual</option>
+                                            <option value="5405">5405 - Venda de mercadoria com ST</option>
+                                            <option value="5949">5949 - Outra saída de mercadoria</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Unidade de Medida */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Unidade de Medida</label>
+                                        <select
+                                            name="unidade_medida"
+                                            className="w-full p-2 border border-gray-300 rounded focus:ring-orange-500 focus:border-orange-500"
+                                            value={formData.unidade_medida}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="UN">UN - Unidade</option>
+                                            <option value="KG">KG - Quilograma</option>
+                                            <option value="LT">LT - Litro</option>
+                                            <option value="MT">MT - Metro</option>
+                                            <option value="CX">CX - Caixa</option>
+                                            <option value="PC">PC - Peça</option>
+                                            <option value="PAR">PAR - Par</option>
+                                            <option value="PCT">PCT - Pacote</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Origem */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Origem</label>
+                                        <select
+                                            name="origem"
+                                            className="w-full p-2 border border-gray-300 rounded focus:ring-orange-500 focus:border-orange-500"
+                                            value={formData.origem}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="0">0 - Nacional</option>
+                                            <option value="1">1 - Estrangeira (importação direta)</option>
+                                            <option value="2">2 - Estrangeira (adquirida no mercado interno)</option>
+                                            <option value="3">3 - Nacional com conteúdo importado {'>'} 40%</option>
+                                            <option value="4">4 - Nacional produzida conforme processos produtivos básicos</option>
+                                            <option value="5">5 - Nacional com conteúdo importado {'<='} 40%</option>
+                                            <option value="6">6 - Estrangeira (importação direta) sem similar nacional</option>
+                                            <option value="7">7 - Estrangeira (adquirida no mercado interno) sem similar nacional</option>
+                                            <option value="8">8 - Nacional com conteúdo importado {'>'} 70%</option>
+                                        </select>
+                                    </div>
+
+                                    {/* CSOSN ICMS */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">CSOSN ICMS</label>
+                                        <select
+                                            name="csosn_icms"
+                                            className="w-full p-2 border border-gray-300 rounded focus:ring-orange-500 focus:border-orange-500"
+                                            value={formData.csosn_icms}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="101">101 - Tributada com permissão de crédito</option>
+                                            <option value="102">102 - Tributada sem permissão de crédito</option>
+                                            <option value="103">103 - Isenção de ICMS para faixa de receita bruta</option>
+                                            <option value="201">201 - Tributada com permissão de crédito e com cobrança de ICMS por ST</option>
+                                            <option value="202">202 - Tributada sem permissão de crédito e com cobrança de ICMS por ST</option>
+                                            <option value="203">203 - Isenção de ICMS para faixa de receita bruta e com cobrança de ICMS por ST</option>
+                                            <option value="300">300 - Imune</option>
+                                            <option value="400">400 - Não tributada</option>
+                                            <option value="500">500 - ICMS cobrado anteriormente por ST ou por antecipação</option>
+                                            <option value="900">900 - Outros</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="pt-4 border-t border-gray-100 flex justify-end gap-4">

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import api from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
@@ -13,7 +13,7 @@ import {
     Eye,
     EyeOff
 } from "lucide-react";
-import Pagination from "@/components/Pagination"; // Importe a Paginação
+import Pagination from "@/components/Pagination";
 import { toast } from "sonner";
 
 interface Product {
@@ -35,29 +35,46 @@ export default function ProductList() {
     const [loading, setLoading] = useState(true);
 
     const [currentPage, setCurrentPage] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
     const itemsPerPage = 5;
 
     // Permissão: Apenas Admin e Manager podem editar/excluir
     const canManage = role === "admin" || role === "manager";
 
-    useEffect(() => {
-        fetchProducts();
-    }, []);
-
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [search]);
-
-    const fetchProducts = async () => {
+    const fetchProducts = useCallback(async (page: number, searchTerm: string) => {
+        setLoading(true);
         try {
-            const res = await api.get("/products/");
-            setProducts(res.data);
+            const skip = (page - 1) * itemsPerPage;
+            const params = new URLSearchParams({
+                skip: String(skip),
+                limit: String(itemsPerPage),
+            });
+            if (searchTerm) params.append("search", searchTerm);
+
+            const res = await api.get(`/products/?${params.toString()}`);
+            setProducts(res.data.items);
+            setTotalItems(res.data.total);
+            setTotalPages(res.data.total_pages);
         } catch (error) {
             toast.error("Erro ao carregar produtos");
         } finally {
             setLoading(false);
         }
-    };
+    }, [itemsPerPage]);
+
+    useEffect(() => {
+        fetchProducts(currentPage, search);
+    }, [currentPage, fetchProducts]);
+
+    // Debounce para busca
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setCurrentPage(1);
+            fetchProducts(1, search);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [search, fetchProducts]);
 
     const handleDelete = async (id: number, name: string) => {
         if (!confirm(`Tem certeza que deseja excluir o produto "${name}"?`)) return;
@@ -65,8 +82,7 @@ export default function ProductList() {
         try {
             await api.delete(`/products/${id}`);
             toast.success("Produto excluído com sucesso!");
-            // Remove da lista localmente para não precisar recarregar tudo
-            setProducts((prev) => prev.filter((p) => p.id !== id));
+            fetchProducts(currentPage, search);
         } catch (error: any) {
             const msg = error.response?.data?.detail || "Erro ao excluir produto";
             toast.error(msg);
@@ -96,18 +112,6 @@ export default function ProductList() {
         }
     };
 
-    // Filtro de busca
-    const filteredProducts = products.filter((p) =>
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        (p.barcode && p.barcode.includes(search))
-    );
-
-    const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-    const currentItems = filteredProducts.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
-
     return (
         <div className="min-h-screen bg-gray-100 p-6">
             <div className="max-w-6xl mx-auto">
@@ -122,7 +126,7 @@ export default function ProductList() {
                             <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                                 <Package /> Produtos
                             </h1>
-                            <p className="text-sm text-gray-500">{products.length} itens cadastrados</p>
+                            <p className="text-sm text-gray-500">{totalItems} itens cadastrados</p>
                         </div>
                     </div>
 
@@ -165,11 +169,11 @@ export default function ProductList() {
                         </thead>
                         <tbody className="text-sm text-gray-700 divide-y divide-gray-100">
                             {loading ? (
-                                <tr><td colSpan={6} className="p-8 text-center text-gray-500">Carregando...</td></tr>
-                            ) : currentItems.length === 0 ? (
-                                <tr><td colSpan={6} className="p-8 text-center text-gray-500">Nenhum produto encontrado.</td></tr>
+                                <tr><td colSpan={8} className="p-8 text-center text-gray-500">Carregando...</td></tr>
+                            ) : products.length === 0 ? (
+                                <tr><td colSpan={8} className="p-8 text-center text-gray-500">Nenhum produto encontrado.</td></tr>
                             ) : (
-                                currentItems.map((product) => (
+                                products.map((product) => (
                                     <tr key={product.id} className="hover:bg-gray-50 transition">
                                         <td className="p-4 text-gray-500">#{product.id}</td>
                                         <td className="p-4 font-medium text-gray-800">
@@ -232,7 +236,7 @@ export default function ProductList() {
                     currentPage={currentPage}
                     totalPages={totalPages}
                     onPageChange={setCurrentPage}
-                    totalItems={filteredProducts.length}
+                    totalItems={totalItems}
                     itemsPerPage={itemsPerPage}
                 />
             </div>

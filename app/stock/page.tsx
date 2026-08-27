@@ -14,7 +14,8 @@ import {
     Search
 } from "lucide-react";
 import { toast } from "sonner";
-import Pagination from "@/components/Pagination"; // Importe a Paginação
+import Pagination from "@/components/Pagination";
+import ProductSearch from "@/components/ProductSearch";
 
 
 interface StockMovement {
@@ -26,18 +27,12 @@ interface StockMovement {
     timestamp: string;
 }
 
-interface Product {
-    id: number;
-    name: string;
-}
-
 export default function StockPage() {
     const { role } = useAuth();
     const router = useRouter();
 
     // Dados
     const [movements, setMovements] = useState<StockMovement[]>([]);
-    const [products, setProducts] = useState<Product[]>([]);
 
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
@@ -57,21 +52,12 @@ export default function StockPage() {
             router.push("/");
             return;
         }
-        fetchProducts();
         fetchHistory();
     }, [role]);
 
     useEffect(() => {
         setCurrentPage(1);
     }, [filterType, startDate, endDate]);
-
-    // Busca lista de produtos para o Select
-    const fetchProducts = async () => {
-        try {
-            const res = await api.get("/products/?active_only=true");
-            setProducts(res.data);
-        } catch (e) { console.error(e); }
-    };
 
     // Busca Histórico com Filtros
     const fetchHistory = async () => {
@@ -140,16 +126,11 @@ export default function StockPage() {
                     <form onSubmit={handleEntry} className="flex flex-col md:flex-row gap-4 items-end">
                         <div className="flex-1 w-full">
                             <label className="block text-sm font-medium text-gray-600 mb-1">Produto</label>
-                            <select
-                                className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500"
+                            <ProductSearch
                                 value={selectedProduct}
-                                onChange={e => setSelectedProduct(e.target.value)}
-                            >
-                                <option value="">Selecione...</option>
-                                {products.map(p => (
-                                    <option key={p.id} value={p.id}>{p.name}</option>
-                                ))}
-                            </select>
+                                onChange={(productId) => setSelectedProduct(productId)}
+                                placeholder="Buscar produto por nome..."
+                            />
                         </div>
                         <div className="w-full md:w-32">
                             <label className="block text-sm font-medium text-gray-600 mb-1">Qtd.</label>

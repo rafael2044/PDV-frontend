@@ -15,8 +15,13 @@ export default function useScanDetection({ onScan, minLength = 3 }: UseScanDetec
             const target = e.target as HTMLElement;
 
             // Se o usuário estiver digitando em um input normal (ex: nome do cliente), ignoramos
+            // EXCETO se for o campo de busca do PDV (que aceita scan)
             if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
-                return;
+                const input = target as HTMLInputElement;
+                // Se o input não tiver placeholder de scan, ignora
+                if (!input.placeholder?.includes("Escanear")) {
+                    return;
+                }
             }
 
             // Se for Enter e tivermos algo no buffer, é um scan!

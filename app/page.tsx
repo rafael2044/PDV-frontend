@@ -18,6 +18,7 @@ import CheckoutModal from "@/components/CheckoutModal";
 import QuantityModal from "@/components/QuantityModal";
 import ChangeTerminalModal from "@/components/ChangeTerminalModal";
 import useScanDetection from "@/hooks/useScanDetection";
+import { parseBalanceBarcode } from "@/lib/barcode";
 import CupomModal from "@/components/CupomModal";
 import FechamentoModal from "@/components/FechamentoModal";
 import { toast } from "sonner";
@@ -46,7 +47,13 @@ export default function PDV() {
 
   // Estados existentes
   const [products, setProducts] = useState<Product[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("pdv_cart");
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -66,6 +73,11 @@ export default function PDV() {
     setTerminalName(Cookies.get("terminal_id") || "Indefinido");
   }, []);
 
+  // Salvar carrinho no localStorage
+  useEffect(() => {
+    localStorage.setItem("pdv_cart", JSON.stringify(cart));
+  }, [cart]);
+
   useEffect(() => {
     if (isAuthenticated) {
       checkStatus();
@@ -82,8 +94,8 @@ export default function PDV() {
 
   const fetchProducts = async () => {
     try {
-      const res = await api.get("/products/?active_only=true");
-      setProducts(res.data);
+      const res = await api.get("/products/?active_only=true&limit=1000");
+      setProducts(res.data.items);
     } catch (error) {
       console.error("Erro ao buscar produtos", error);
     }
@@ -180,15 +192,38 @@ export default function PDV() {
   };
 
   const handleScan = (code: string) => {
-    // Tenta achar o produto pelo código de barras
-    const product = products.find(p => p.barcode === code);
+    const cleanCode = code.trim();
+    const balance = parseBalanceBarcode(cleanCode);
+
+    if (balance.isBalanceBarcode && balance.valid) {
+      const product =
+        products.find((p) => p.barcode?.trim() === cleanCode) ||
+        products.find((p) => p.barcode?.trim() === balance.productCode);
+
+      if (product) {
+        setCart((prev) => {
+          const existing = prev.find((item) => item.id === product.id);
+          if (existing) {
+            return prev.map((cartItem) =>
+              cartItem.id === product.id
+                ? { ...cartItem, quantity: Math.round((cartItem.quantity + balance.weightKg) * 1000) / 1000 }
+                : cartItem
+            );
+          }
+          return [...prev, { ...product, quantity: balance.weightKg }];
+        });
+        toast.success(`${product.name} - ${balance.weightKg.toFixed(3)}kg adicionado`);
+        return;
+      }
+    }
+
+    const product = products.find((p) => p.barcode?.trim() === cleanCode);
 
     if (product) {
-      // Se achou, abre o modal de quantidade (mesma lógica do clique/busca)
       handleProductClick(product);
       toast.success(`Produto identificado: ${product.name}`);
     } else {
-      toast.warning(`Produto com código "${code}" não encontrado.`);
+      toast.warning(`Produto com código "${cleanCode}" não encontrado.`);
     }
   };
 
